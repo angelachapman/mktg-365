@@ -1,10 +1,13 @@
 library(plyr)
 library(ggplot2)
 
+dataDir = "~/mktg-365/data" ##### CHANGE ME #####
+
 # Data set 1: Approved loans
+setwd(dataDir)
 ls3a = read.csv("LoanStats3a_securev1.csv")
-ls3b = read.csv("LoanStats3bb_securev1.csv")
-ls3c = read.csv("LoanStats3cc_securev1.csv")
+ls3b = read.csv("LoanStats3b_securev1.csv")
+ls3c = read.csv("LoanStats3c_securev1.csv")
 approved = rbind(ls3a,ls3b,ls3c)
 rm(list=c("ls3a","ls3b","ls3c"))
 cat("Data dimensions -- approved loans:",dim(approved)[1],"x",dim(approved)[2])
