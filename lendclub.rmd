@@ -10,7 +10,7 @@ ls3b = read.csv("LoanStats3b_securev1.csv")
 ls3c = read.csv("LoanStats3c_securev1.csv")
 approved = rbind(ls3a,ls3b,ls3c)
 rm(list=c("ls3a","ls3b","ls3c"))
-cat("Data dimensions -- approved loans:",dim(approved)[1],"x",dim(approved)[2])
+cat("Data dimensions -- approved loans:",dim(approved)[1],"x",dim(approved)[2],"\n")
 
 # Parse the date from format jan-2000 into month and year number
 approved$Year = as.numeric(substr(approved$issue_d,5,8))
@@ -20,16 +20,24 @@ approved$Month = mo2Num(substr(approved$issue_d,1,3))
 # Take a look at the loan purpose. What are the most frequent loan types?
 # Did the composition of loans change by year?
 mytable = sort(table(approved$purpose),decreasing=TRUE)
-cat("The top 10 loan types are:", names(mytable)[1:10])
+cat("The top 10 loan types are:", names(mytable)[1:10],"\n")
 
 # Take the top 6 as individual categories, call the rest "Other"
 # (for clearer plotting)
 approved$purpose[which(!(approved$purpose %in% names(mytable)[1:6]))] = "other"
-df = ddply(approved,.(Year))
+df = ddply(approved,.(Year),avg_funded = mean(funded_amnt),
+           med_funded = median(funded_amount))
 g = ggplot(df,aes(x=Year,fill=purpose))
 g + geom_bar() +
   ggtitle("Lending Club: Approved Loans, 2007-2014") +
   xlab("Loan issue year")
+
+# Did the typical funded amount change by year?
+ggplot(df, aes(x=Year,y=med_funded)) +
+  geom_bar() +
+  ggtitle("Lending Club: Median loan size, 2007-2014") +
+  xlab("Loan issue year") +
+  ylab("Loan size ($)")
 
 # Take a look at loan status. What is the distribution of loan status by
 # issue year and by loan type? Is there an obvious relationship between income,
@@ -45,6 +53,13 @@ g = ggplot(df, aes(x=Year,fill=loan_status))
 g + geom_bar() +
   ggtitle("Lending Club: Status of all approved loans as of 2014") +
   xlab("Loan issue year")
+
+# Also take a look at loan status by the funded amount
+ggplot(approved[approved$loan_status %in% validStatus,], 
+       aes(x=funded_amnt,fill=loan_status)) +
+  geom_histogram(binwidth = 5000) +
+  ggtitle("Lending Club: Loan status versus loan size, 2007-2014") +
+  xlab("Funded amount")
 
 table(approved$loan_status[approved$loan_status %in% validStatus])
 
