@@ -1,3 +1,4 @@
+```{r}
 library(plyr)
 library(ggplot2)
 
@@ -16,7 +17,9 @@ cat("Data dimensions -- approved loans:",dim(approved)[1],"x",dim(approved)[2],"
 approved$Year = as.numeric(substr(approved$issue_d,5,8))
 mo2Num = function(x) match(tolower(x),tolower(month.abb))
 approved$Month = mo2Num(substr(approved$issue_d,1,3))
+```
 
+```{r}
 # Take a look at the loan purpose. What are the most frequent loan types?
 # Did the composition of loans change by year?
 mytable = sort(table(approved$purpose),decreasing=TRUE)
@@ -25,8 +28,9 @@ cat("The top 10 loan types are:", names(mytable)[1:10],"\n")
 # Take the top 6 as individual categories, call the rest "Other"
 # (for clearer plotting)
 approved$purpose[which(!(approved$purpose %in% names(mytable)[1:6]))] = "other"
-df = ddply(approved,.(Year),avg_funded = mean(funded_amnt),
-           med_funded = median(funded_amount))
+df = ddply(approved,.(Year),
+           avg_funded = mean(funded_amnt),
+           med_funded = median(funded_amnt))
 g = ggplot(df,aes(x=Year,fill=purpose))
 g + geom_bar() +
   ggtitle("Lending Club: Approved Loans, 2007-2014") +
@@ -38,7 +42,9 @@ ggplot(df, aes(x=Year,y=med_funded)) +
   ggtitle("Lending Club: Median loan size, 2007-2014") +
   xlab("Loan issue year") +
   ylab("Loan size ($)")
+```
 
+```{r}
 # Take a look at loan status. What is the distribution of loan status by
 # issue year and by loan type? Is there an obvious relationship between income,
 # risk score, and loan status?
@@ -48,6 +54,7 @@ lateStatus = c("Late (31-120 days)","Late (16-30 days)", "In Grace Period")
 approved$loan_status = as.character(approved$loan_status)
 approved$loan_status[approved$loan_status %in% lateStatus] = "Late"
 validStatus = c("Current", "Charged Off", "Fully Paid", "Late", "Default")
+
 df = ddply(approved[approved$loan_status %in% validStatus,],.(Year))
 g = ggplot(df, aes(x=Year,fill=loan_status))
 g + geom_bar() +
@@ -60,9 +67,9 @@ ggplot(approved[approved$loan_status %in% validStatus,],
   geom_histogram(binwidth = 5000) +
   ggtitle("Lending Club: Loan status versus loan size, 2007-2014") +
   xlab("Funded amount")
+```
 
-table(approved$loan_status[approved$loan_status %in% validStatus])
-
+```{r}
 approved = approved[approved$loan_status %in% validStatus,]
 ggplot(approved, aes(x=loan_status,fill=purpose)) + geom_histogram() +
   xlab("Loan status") +
@@ -80,9 +87,12 @@ approved = approved[approved$loan_status %in% c("Current","Charged Off","Fully P
                                                 "Default"),]
 approved$loan_standing = rep("Bad",length(approved$loan_status))
 approved$loan_standing[approved$loan_status %in% c("Current","Fully Paid")] = "Good"
+```
+
+```{r}
 library(scales)
 
-#Analyze if Fico Score differs by Loan Status
+#Analyze whether Fico Score differs by Loan Status
 g = ggplot(approved,
            aes(y=annual_inc,x=(fico_range_high + fico_range_low)/2,
                color=loan_standing, shape = loan_standing))
@@ -91,50 +101,72 @@ g + geom_point() +
   xlab("FICO score") +
   ggtitle("Lending Club: Loan standing by lendee characteristics")
 
+# NOTE: the "notch" argument of boxplot function indicates whether any difference is 
+# statistically significant (if notches overlap, they are NOT significant)
 approved$ficoScore = (approved$fico_range_high + approved$fico_range_low)/2
+ggplot(approved,aes(x=loan_standing,y=(fico_range_high + fico_range_low)/2)) + 
+  geom_boxplot(notch=TRUE) +
+  xlab("Loan Standing") +
+  ylab("FICO score") +
+  ggtitle("Lending Club: Loan standing by FICO score")
 
-ggplot(approved,aes(x=loan_standing,y=(fico_range_high + fico_range_low)/2))+geom_boxplot()
+cat("T test results for impact of loan standing on FICO score:")
+print(t.test(approved$ficoScore ~ approved$loan_standing))
+```
 
-t.test(approved$ficoScore ~ approved$loan_standing)
-
-summary(approved$ficoScore)
-
-table(approved$loan_standing)
-
-sum(approved$loan_standing=="Bad")/length(approved$loan_standing)
-
-
+```{r}
 # Can we build a simple model to predict loan standing?
 approved$earliestCreditYr = as.numeric(substr(approved$earliest_cr_line,5,8))
 approved$avgFico = (approved$fico_range_high + approved$fico_range_low)/2
 approved$bad_standing = rep(0,length(approved$loan_standing))
 approved$bad_standing[approved$loan_standing=="Bad"]=1
+
 # Interest rate is a character string x.xx% -- convert to numeric
 approved$int_rate = as.numeric(gsub("%","",approved$int_rate))
+
+# Hacky way of converting employment length into a 
+# numberic variable...
+approved$emp_length_numeric = gsub("year","",approved$emp_length)
+approved$emp_length_numeric = gsub("s","",approved$emp_length_numeric)
+approved$emp_length_numeric = gsub(" ","",approved$emp_length_numeric)
+approved$emp_length_numeric = gsub("<","",approved$emp_length_numeric)
+approved$emp_length_numeric = gsub("\\+","",approved$emp_length_numeric)
+approved$emp_length_numeric[approved$emp_length_numeric=="n/a"] = NA
+approved$emp_length_numeric = as.numeric(approved$emp_length_numeric)
+
 # Use 'common sense' to pick a set of variables for inclusion
-columnsToUse = c("id","loan_amnt","int_rate","installment",
-                 "emp_length","annual_inc","home_ownership",
+columnsToUse = c("loan_amnt","int_rate","installment",
+                 "emp_length_numeric","annual_inc","home_ownership",
                  "purpose","dti",
                  "earliestCreditYr","avgFico","inq_last_6mths",
                  "mths_since_last_delinq","open_acc",
-                 "mths_since_last_major_derog","bad_standing")
-# Shuffle data and split into train and test sets - is this shuffled?  
+                 "mths_since_last_major_derog","bad_standing","Year","Month")
+
+# Shuffle data and split into train and test sets (use 2/3 of data for training and
+# 1/3 for testing)  
+approved <- approved[sample(nrow(approved)),]
 training = approved[1:ceiling(nrow(approved)/3*2),columnsToUse]
 validation = approved[-(1:ceiling(nrow(approved)/3*2)),columnsToUse]
+
 # Do a logistic regression
-reg1 = glm(bad_standing~. -id,data=training,family="binomial")
+reg1 = glm(bad_standing~.,data=training,family="binomial")
 print(summary(reg1))
 
-pred = predict(reg1,newdata=training,type="response")
+pred1 = predict(reg1, newdata=validation, type="response")
+boxplot(pred1~validation$bad_standing,notch=TRUE,
+        ylab = "Predicted probability of being a bad loan",
+        xlab = "Actual loan standing (1=bad, 0=good)", 
+        main = "Lending Club: Logistic regression results")
 
-pred1 = predict(reg1,newdata=validation,type="response")
+print(t.test(pred1 ~ validation$bad_standing))
 
-summary(pred1)
-mean(pred1-validation$bad_standing)
-validation <- cbind(validation,pred1)
-t.test(validation$pred1 ~ validation$bad_standing)
+# Calculate AUC and plot the ROC curve
+library(pROC)
+cat("AUC of logistic regression:",pROC::auc(validation$bad_standing, pred1))
+roc(validation$bad_standing, pred1, plot=TRUE)
+```
 
-
+```{r}
 #stepwise regression process
 
 #Create training sample of 500 good loans and 500 bad loans
@@ -185,3 +217,5 @@ target <- validation[validation$pred1>4*mean(validation$pred1),]
 
 mean(target$pred1)
 mean(target$bad_standing)
+```
+
