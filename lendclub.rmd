@@ -216,8 +216,6 @@ boxplot(pred2~validation$bad_standing,notch=TRUE,
 cat("AUC of stepwise logistic regression:",pROC::auc(validation$bad_standing, pred2))
 #roc(validation$bad_standing, pred2, plot=TRUE) 
 
-# I know he did the following in class, but I personally think it's a biased way
-# of looking at the logistic regression results
 validation$pred2 = pred2
 validation2 <- validation[!is.na(pred2),]
 target <- validation2[pred2>4*mean(pred2,na.rm=T),]
