@@ -134,13 +134,17 @@ approved$emp_length_numeric = gsub("\\+","",approved$emp_length_numeric)
 approved$emp_length_numeric[approved$emp_length_numeric=="n/a"] = NA
 approved$emp_length_numeric = as.numeric(approved$emp_length_numeric)
 
+# Also convert the year/month into a set of discrete, ordered time periods 1-N by month
+approved$time_period = (approved$Year*10+approved$Month)
+approved$time_period = approved$time_period - min(approved$time_period)
+
 # Use 'common sense' to pick a set of variables for inclusion
 columnsToUse = c("loan_amnt","int_rate","installment",
                  "emp_length_numeric","annual_inc","home_ownership",
                  "purpose","dti",
                  "earliestCreditYr","avgFico","inq_last_6mths",
                  "mths_since_last_delinq","open_acc",
-                 "mths_since_last_major_derog","bad_standing","Year","Month")
+                 "mths_since_last_major_derog","bad_standing","time_period")
 
 # Shuffle data and split into train and test sets (use 2/3 of data for training and
 # 1/3 for testing)  
@@ -149,7 +153,7 @@ training = approved[1:ceiling(nrow(approved)/3*2),columnsToUse]
 validation = approved[-(1:ceiling(nrow(approved)/3*2)),columnsToUse]
 
 # Do a logistic regression
-reg1 = glm(bad_standing~.,data=training,family="binomial")
+reg1 = glm(bad_standing~.+I(time_period^2)+I(time_period^3),data=training,family="binomial")
 print(summary(reg1))
 
 pred1 = predict(reg1, newdata=validation, type="response")
@@ -169,22 +173,21 @@ roc(validation$bad_standing, pred1, plot=TRUE)
 ```{r}
 #stepwise regression process
 
-#Create training sample of 500 good loans and 500 bad loans
-
+#Create training sample of 5000 good loans and 5000 bad loans
 bad <- subset(approved,bad_standing==1)
 bad <- na.omit(bad[,columnsToUse])
-badest <- sample(nrow(bad),500)
+badest <- sample(nrow(bad),1000)
 bad <- bad[badest,]
 
 good <- subset(approved,bad_standing==0)
 good <- na.omit(good[,columnsToUse])
-goodest <- sample(nrow(good),500)
+goodest <- sample(nrow(good),1000)
 good <- good[goodest,]
 est <- rbind(bad,good)
 
 table(est$bad_standing)
 badPop = mean(approved$bad_standing)
-badSample=mean(est$bad_standing)
+badSample = mean(est$bad_standing)
 
 offset <- log(((1-badPop)/badPop)/((1-badSample)/badSample))
 est$offset=offset
@@ -199,20 +202,30 @@ formula(sreg2)
 sreg3 = glm(formula(sreg2),family=binomial,data=est,offset=offset)
 summary(sreg3)
 
-#See if this improves the prediction
-#Need to create validation sample by removing est from approved (add back ID into est)
-#Look at prediction scores that are 2x higher than the mean
-#Maybe add in lateness to bad_standing?
+# See if this improves the prediction
+# Need to create validation sample by removing est from approved (add back ID into est)
+# Look at prediction scores that are 2x higher than the mean (why?)
+# Maybe add in lateness to bad_standing?
 validation <- approved[!(approved$id %in% est$id),]
+pred2 = predict(sreg3,newdata=validation,type="response")
 
-pred1 = predict(sreg3,newdata=validation,type="response")
+# Look at results
+cat("Stepwise regression results:")
+print(summary(pred2))
+print(mean(pred2-validation$bad_standing))
+print(t.test(pred2 ~ validation$bad_standing))
 
-summary(pred1)
-mean(pred1-validation$bad_standing)
-validation <- cbind(validation,pred1)
-t.test(validation$pred1 ~ validation$bad_standing)
+boxplot(pred2~validation$bad_standing,notch=TRUE,
+        ylab = "Predicted probability of being a bad loan",
+        xlab = "Actual loan standing (1=bad, 0=good)", 
+        main = "Lending Club: Stepwise logistic regression results")
+
+cat("AUC of stepwise logistic regression:",pROC::auc(validation$bad_standing, pred2))
+roc(validation$bad_standing, pred2, plot=TRUE)
+
+# I know he did the following in class, but I personally think it's a biased way
+# of looking at the logistic regression results
 validation <- validation[!is.na(validation$pred1),]
-
 target <- validation[validation$pred1>4*mean(validation$pred1),]
 
 mean(target$pred1)
