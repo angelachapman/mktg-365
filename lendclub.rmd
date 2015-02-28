@@ -225,10 +225,11 @@ roc(validation$bad_standing, pred2, plot=TRUE)
 
 # I know he did the following in class, but I personally think it's a biased way
 # of looking at the logistic regression results
-validation <- validation[!is.na(validation$pred1),]
-target <- validation[validation$pred1>4*mean(validation$pred1),]
+validation$pred2 = pred2
+validation <- validation[!is.na(pred2),]
+target <- validation[pred2>4*mean(pred2),]
 
-mean(target$pred1)
+mean(target$pred2)
 mean(target$bad_standing)
 ```
 
