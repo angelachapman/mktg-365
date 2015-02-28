@@ -35,13 +35,6 @@ g = ggplot(df,aes(x=Year,fill=purpose))
 g + geom_bar() +
   ggtitle("Lending Club: Approved Loans, 2007-2014") +
   xlab("Loan issue year")
-
-# Did the typical funded amount change by year?
-ggplot(df, aes(x=Year,y=med_funded)) +
-  geom_bar() +
-  ggtitle("Lending Club: Median loan size, 2007-2014") +
-  xlab("Loan issue year") +
-  ylab("Loan size ($)")
 ```
 
 ```{r}
@@ -173,15 +166,15 @@ roc(validation$bad_standing, pred1, plot=TRUE)
 ```{r}
 #stepwise regression process
 
-#Create training sample of 5000 good loans and 5000 bad loans
+#Create training sample of 1000 or so good loans and 1000 or so bad loans
 bad <- subset(approved,bad_standing==1)
 bad <- na.omit(bad[,columnsToUse])
-badest <- sample(nrow(bad),1000)
+badest <- sample(nrow(bad),1500)
 bad <- bad[badest,]
 
 good <- subset(approved,bad_standing==0)
 good <- na.omit(good[,columnsToUse])
-goodest <- sample(nrow(good),1000)
+goodest <- sample(nrow(good),1500)
 good <- good[goodest,]
 est <- rbind(bad,good)
 
@@ -192,7 +185,8 @@ badSample = mean(est$bad_standing)
 offset <- log(((1-badPop)/badPop)/((1-badSample)/badSample))
 est$offset=offset
 
-reg1 = glm(bad_standing ~ . -id,family=binomial,data=est,offset=offset)
+reg1 = glm(bad_standing ~ . + I(time_period^2) + I(time_period^3),
+           family=binomial, data=est, offset=offset)
 
 sreg1 = glm(formula(reg1),data=est,offset=offset,family=binomial)
 sreg2 = step(sreg1,data=est)
@@ -212,7 +206,6 @@ pred2 = predict(sreg3,newdata=validation,type="response")
 # Look at results
 cat("Stepwise regression results:")
 print(summary(pred2))
-print(mean(pred2-validation$bad_standing))
 print(t.test(pred2 ~ validation$bad_standing))
 
 boxplot(pred2~validation$bad_standing,notch=TRUE,
@@ -221,15 +214,15 @@ boxplot(pred2~validation$bad_standing,notch=TRUE,
         main = "Lending Club: Stepwise logistic regression results")
 
 cat("AUC of stepwise logistic regression:",pROC::auc(validation$bad_standing, pred2))
-roc(validation$bad_standing, pred2, plot=TRUE)
+#roc(validation$bad_standing, pred2, plot=TRUE) 
 
 # I know he did the following in class, but I personally think it's a biased way
 # of looking at the logistic regression results
 validation$pred2 = pred2
-validation <- validation[!is.na(pred2),]
-target <- validation[pred2>4*mean(pred2),]
+validation2 <- validation[!is.na(pred2),]
+target <- validation2[pred2>4*mean(pred2,na.rm=T),]
 
-mean(target$pred2)
-mean(target$bad_standing)
+mean(target$pred2,na.rm=T)
+mean(target$bad_standing,na.rm=T)
 ```
 
