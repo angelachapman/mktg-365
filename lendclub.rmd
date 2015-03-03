@@ -166,6 +166,15 @@ roc(validation$bad_standing, pred1, plot=TRUE)
 ```{r}
 #stepwise regression process
 
+#Add in additional variables to examine
+
+columnsToUse = c("grade", "loan_amnt","int_rate","installment",
+                 "emp_length_numeric","annual_inc","home_ownership",
+                 "purpose","dti",
+                 "earliestCreditYr","avgFico","inq_last_6mths",
+                 "mths_since_last_delinq","open_acc",
+                 "mths_since_last_major_derog","bad_standing","time_period")
+
 #Create training sample of 1000 or so good loans and 1000 or so bad loans
 bad <- subset(approved,bad_standing==1)
 bad <- na.omit(bad[,columnsToUse])
@@ -201,6 +210,15 @@ summary(sreg3)
 # Look at prediction scores that are 2x higher than the mean (why?)
 # Maybe add in lateness to bad_standing?
 validation <- approved[!(approved$id %in% est$id),]
+
+print(table(validation$home_ownership))
+#deal with home_ownership values in validation
+validation$home_ownership[validation$home_ownership=="OTHER"] = "NONE"
+validation$home_ownership[validation$home_ownership=="ANY"] = "NONE"
+
+#table(validation$purpose)
+#validation$purpose[!(validation$purpose %in% est$purpose)] = "other"
+
 pred2 = predict(sreg3,newdata=validation,type="response")
 
 # Look at results
@@ -214,13 +232,23 @@ boxplot(pred2~validation$bad_standing,notch=TRUE,
         main = "Lending Club: Stepwise logistic regression results")
 
 cat("AUC of stepwise logistic regression:",pROC::auc(validation$bad_standing, pred2))
+# The following line of code takes a very long time
 #roc(validation$bad_standing, pred2, plot=TRUE) 
 
+#Can we get to a subset of customers who are highly likely to be in bad standing?
+#Should we instead do this analysis on the training sample?
 validation$pred2 = pred2
-validation2 <- validation[!is.na(pred2),]
-target <- validation2[pred2>4*mean(pred2,na.rm=T),]
+validation2 <- validation[!is.na(validation$pred2),]
 
-mean(target$pred2,na.rm=T)
-mean(target$bad_standing,na.rm=T)
+# The following plot could use some labels.
+ggplot(validation2,aes(x=validation2$bad_standing,y=validation2$pred2))+geom_point()
+summary(validation2$pred2[validation2$bad_standing==1])
+summary(validation2$pred2[validation2$bad_standing==0])
+
+cutoff = quantile(validation2$pred2[validation2$bad_standing==1],.9725)
+cutoffRatio = cutoff/mean(validation2$pred2)
+
+target <- validation2[validation2$pred2>cutoff,]
+
 ```
 
